@@ -39,6 +39,37 @@ async function run() {
     const usersCollection = database.collection("users");
     const assignmentsCollection = database.collection("assignments");
 
+    //users data
+
+    app.post("/users", async (req, res) => {
+      const userData = req.body;
+      const userEmail = req.body.email;
+      const filter = { email: userEmail };
+      const data = await usersCollection.findOne(filter);
+      if (data === null) {
+        const result = await usersCollection.insertOne(userData);
+        res.send(result);
+        return;
+      }
+      res.send({ response: "user already added" });
+    });
+
+    // assignment related apis
+
+    app.post("/assignments", async (req, res) => {
+      const assignment = req.body;
+      console.log(assignment);
+      const result = await assignmentsCollection.insertOne(assignment);
+      res.send(result);
+    });
+
+    app.get("/assignments", async (req, res) => {
+      const cursor = assignmentsCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
