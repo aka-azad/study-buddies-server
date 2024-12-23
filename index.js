@@ -16,7 +16,7 @@ app.get("/", (req, res) => {
   res.send("Study Buddies Server is Running");
 });
 
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@main.h0ug1.mongodb.net/?retryWrites=true&w=majority&appName=main`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -58,7 +58,6 @@ async function run() {
 
     app.post("/assignments", async (req, res) => {
       const assignment = req.body;
-      console.log(assignment);
       const result = await assignmentsCollection.insertOne(assignment);
       res.send(result);
     });
@@ -68,8 +67,31 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
+    app.get("/assignments/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await assignmentsCollection.findOne(filter);
+      res.send(result);
+    });
 
-    
+    app.put("/assignments/:id", async (req, res) => {
+      const id = req.params.id;
+      const data = req.body;
+      const updatedData = { $set: data };
+      const filter = { _id: new ObjectId(id) };
+
+      const result = await assignmentsCollection.updateOne(filter, updatedData);
+      res.send(result);
+    });
+
+    app.delete("/assignments/:id", async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const result = await assignmentsCollection.deleteOne(filter);
+      res.send(result);
+      console.log(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
