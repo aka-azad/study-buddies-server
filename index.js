@@ -38,6 +38,7 @@ async function run() {
     const database = client.db("study-buddies");
     const usersCollection = database.collection("users");
     const assignmentsCollection = database.collection("assignments");
+    const submissionsCollection = database.collection("submissions");
 
     //users data
 
@@ -90,6 +91,32 @@ async function run() {
       const result = await assignmentsCollection.deleteOne(filter);
       res.send(result);
       console.log(result);
+    });
+
+    //submission related apis
+
+    app.post("/submissions", async (req, res) => {
+      const submissionData = req.body;
+      const result = await submissionsCollection.insertOne(submissionData);
+      res.send(result);
+    });
+
+    app.get("/submissions/pending", async (req, res) => {
+      const filter = { status: "pending" };
+      const cursor = submissionsCollection.find(filter);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.patch("/submissions/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedAssignment = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: updatedAssignment,
+      };
+      const result = await submissionsCollection.updateOne(filter, updateDoc);
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
