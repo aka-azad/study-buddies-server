@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 const app = express();
@@ -7,8 +9,29 @@ const port = process.env.PORT || 5000;
 
 //middlewares
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(cookieParser());
+
+const verifyToken = (req, res, next) => {
+  const token = req?.cookies?.token;
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized Access" });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorized Access" });
+    }
+    res.user = decoded;
+    next();
+  });
+};
 
 //root
 
@@ -40,6 +63,29 @@ async function run() {
     const assignmentsCollection = database.collection("assignments");
     const submissionsCollection = database.collection("submissions");
 
+    //JWT related apis
+
+    app.post("/login", async (req, res) => {
+      const email = req.body;
+
+      const user = await usersCollection.findOne(email);
+
+      if (!user) {
+        return res.status(400).send({ success: false });
+      }
+
+      const token = jwt.sign(email, process.env.JWT_SECRET, {
+        expiresIn: "5h",
+      });
+
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+        })
+        .send({ success: true });
+    });
+
     //users data
 
     app.post("/users", async (req, res) => {
@@ -57,25 +103,45 @@ async function run() {
 
     // assignment related apis
 
-    app.post("/assignments", async (req, res) => {
+    app.post("/assignments", verifyToken, async (req, res) => {
       const assignment = req.body;
       const result = await assignmentsCollection.insertOne(assignment);
       res.send(result);
     });
 
     app.get("/assignments", async (req, res) => {
-      const cursor = assignmentsCollection.find();
-      const result = await cursor.toArray();
-      res.send(result);
+      const { search, difficulty } = req.query;
+
+      let query = {};
+
+      if (search) {
+        query.title = { $regex: search, $options: "i" };
+      }
+
+      if (difficulty && difficulty !== "all") {
+        query.difficulty = difficulty;
+      }
+
+      assignmentsCollection
+        .find(query)
+        .toArray()
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.error("Error fetching assignments:", error);
+          res.status(500).send("Server error");
+        });
     });
-    app.get("/assignments/:id", async (req, res) => {
+
+    app.get("/assignments/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const result = await assignmentsCollection.findOne(filter);
       res.send(result);
     });
 
-    app.put("/assignments/:id", async (req, res) => {
+    app.put("/assignments/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const data = req.body;
       const updatedData = { $set: data };
@@ -85,30 +151,38 @@ async function run() {
       res.send(result);
     });
 
-    app.delete("/assignments/:id", async (req, res) => {
+    app.delete("/assignments/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const filter = { _id: new ObjectId(id) };
       const result = await assignmentsCollection.deleteOne(filter);
       res.send(result);
-      console.log(result);
     });
 
     //submission related apis
 
-    app.post("/submissions", async (req, res) => {
+    app.post("/submissions", verifyToken, async (req, res) => {
       const submissionData = req.body;
       const result = await submissionsCollection.insertOne(submissionData);
       res.send(result);
     });
 
-    app.get("/submissions/pending", async (req, res) => {
+    app.get("/submissions/pending", verifyToken, async (req, res) => {
       const filter = { status: "pending" };
       const cursor = submissionsCollection.find(filter);
       const result = await cursor.toArray();
       res.send(result);
     });
 
-    app.patch("/submissions/:id", async (req, res) => {
+    app.get("/submissions", verifyToken, async (req, res) => {
+      const submittedBy = req.query.submittedBy;
+
+      const filter = { examinee_email: submittedBy };
+      const cursor = submissionsCollection.find(filter);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.patch("/submissions/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const updatedAssignment = req.body;
       const filter = { _id: new ObjectId(id) };
