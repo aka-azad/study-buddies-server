@@ -11,7 +11,7 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "https://study-buddies-by-ashraf.web.app",
+    origin: "https://study-buddies-by-ashraf.web.app", //"http://localhost:5173",
     credentials: true,
   })
 );
@@ -81,7 +81,8 @@ async function run() {
       res
         .cookie("token", token, {
           httpOnly: true,
-          secure: true,
+          sameSite: "none",
+          secure: process.env.NODE_ENV === "production",
         })
         .send({ success: true });
     });
@@ -90,7 +91,7 @@ async function run() {
       res
         .clearCookie("token", {
           httpOnly: true,
-          secure: true,
+          secure: process.env.NODE_ENV === "production",
         })
         .send({ success: true });
     });
@@ -120,21 +121,20 @@ async function run() {
 
     app.get("/assignments", async (req, res) => {
       const { search, difficulty } = req.query;
-    
+
       let query = {};
-    
+
       if (search) {
         query.title = { $regex: search, $options: "i" };
       }
-    
+
       if (difficulty && difficulty !== "all") {
         query.difficulty = difficulty;
       }
-    
-        const assignments = await assignmentsCollection.find(query).toArray();
-        res.send(assignments);
+
+      const assignments = await assignmentsCollection.find(query).toArray();
+      res.send(assignments);
     });
-    
 
     app.get("/assignments/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
